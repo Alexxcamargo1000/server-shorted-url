@@ -1,25 +1,29 @@
 import { PrismaClient } from '@prisma/client'
 import { randomBytes } from 'node:crypto'
 import fastify from 'fastify'
+import cors from '@fastify/cors'
 import { z } from 'zod'
 
 const app = fastify()
+
+app.register(cors)
+
 const prisma = new PrismaClient()
 
 app.post('/short-url', async (req, res) => {
   const schema = z.object({
-    url: z.string().url(),
+    url: z.string().url({ message: 'URL inválida' }),
   })
   const { url } = schema.parse(req.body)
   const shortUrl = randomBytes(3).toString('hex')
 
-  const hasLink = await prisma.link.findUnique({
+  const hasShortUrl = await prisma.link.findUnique({
     where: {
       shortUrl,
     },
   })
 
-  if (hasLink) {
+  if (hasShortUrl) {
     return res.status(400).send({ message: 'Erro ao criar link tente de novo' })
   }
 
@@ -39,9 +43,11 @@ app.get('/links', async () => {
   return links
 })
 
-app.get('/redirect/:short', async (req, res) => {
+app.get('/:short', async (req, res) => {
   const schema = z.object({
-    short: z.string().length(6),
+    short: z.string().length(6, {
+      message: 'O link deve ter 6 caracteres',
+    }),
   })
 
   const { short } = schema.parse(req.params)
@@ -55,7 +61,6 @@ app.get('/redirect/:short', async (req, res) => {
   if (link === null) {
     return res.status(400).send({ message: 'Link não encontrado' })
   }
-
   return res.redirect(link.url)
 })
 
